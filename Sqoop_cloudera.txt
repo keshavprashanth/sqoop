@@ -1,0 +1,152 @@
+sqoop list-databases \
+--connect "jdbc:mysql://quickstart.cloudera:3306" \
+--username root \
+--password cloudera 
+
+
+sqoop list-tables \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username root \
+--password cloudera
+
+
+sqoop eval \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username root \
+--password cloudera \
+--query "SELECT COUNT(*) FROM departments"
+
+
+---- Importing a whole table. 
+
+sqoop import \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username root \
+--password cloudera \
+--table departments \
+--as-textfile \
+--target-dir /user/cloudera/sqoop_import/departments
+
+
+--- Importing via queries.. Need to mention split-by based on a primary key or any field 
+    to create boundary value conditions. 
+	Also mention $CONDITIONS clause which sqoop will use to replace with a unique mapper task specific condition.
+
+sqoop import \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username root \
+--password cloudera \
+--query "SELECT * FROM departments WHERE \$CONDITIONS" \
+--target-dir /user/cloudera/sqoop_import1 \
+--split-by department_id
+
+
+
+
+--- Importing data into an existing table. 
+
+CREATE TABLE departments (
+department_id int,
+department_name string
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '|'
+STORED AS TEXTFILE;
+
+
+
+-- setting custom number of mappers.. this is equivalent to --m 
+-- Field and line terminations.. setting custom terminators for hive. 
+
+sqoop import \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username root \
+--password cloudera \
+--table departments \
+--target-dir /user/hive/warehouse/test_db.db/departments \
+--append \
+--fields-terminated-by '|' \
+--lines-terminated-by '\n' \
+--num-mappers 2 \
+--outdir java_files
+
+
+
+--- Getting the delta from a table and appending to an existing hive table.. 
+
+sqoop import \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username root \
+--password cloudera \
+--table departments \
+--target-dir /user/hive/warehouse/test_db.db/departments \
+--append \
+--fields-terminated-by '|' \
+--lines-terminated-by '\n' \
+--split-by department_id \
+--where "department_id > 4" \
+--outdir java_files
+
+
+
+--- Incremental load 
+
+sqoop import \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username root \
+--password cloudera \
+--table departments \
+--target-dir /user/hive/warehouse/test_db.db/departments \
+--append \
+--fields-terminated-by '|' \
+--lines-terminated-by '\n' \
+--check-column "department_id" \
+--incremental append \
+--last-value 3 \
+--outdir java_files
+
+
+
+
+-- Importing all tables into a database. Database must exist. 
+
+sqoop import-all-tables \
+-m 12 \
+--connect "jdbc:mysql://quickstart.cloudera:3306/retail_db" \
+--username root \
+--password cloudera \
+--as-textfile \
+--hive-import \
+--fields-terminated-by ',' \
+--lines-terminated-by '\n' \
+--hive-database retail_stage
+
+
+
+
+
+--- Sqoop export.
+--- In my sql, create a database and table
+
+create database retail_db_test;
+
+CREATE TABLE `departments` (
+`department_id` int(11) NOT NULL AUTO_INCREMENT,
+`department_name` varchar(45) NOT NULL,
+PRIMARY KEY (`department_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8
+
+
+sqoop export --connect "jdbc:mysql://quickstart.cloudera:3306/retail_db_test" \
+--username root \
+--password cloudera \
+--table departments \
+--export-dir /user/hive/warehouse/test_db.db/departments \
+--input-fields-terminated-by '|' \
+--input-lines-terminated-by '\n' \
+--num-mappers 2 \
+--batch \
+--outdir java_files
+
+
+
+
